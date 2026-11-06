@@ -1,0 +1,900 @@
+import { Theme } from "theme.slint";
+import { MonitorIcon, SproutIcon, CoffeeIcon, BackArrowIcon, SettingsIcon, ResetIcon, SkipIcon, StatsIcon } from "icons.slint";
+import { SettingsView } from "settings.slint";
+import { StatsView, HeatCell, ChartBar, TaskSlice } from "stats.slint";
+import { TasksView, TaskItem } from "tasks.slint";
+import { DataView } from "data.slint";
+import { GoalsView } from "goals.slint";
+
+export component TrayIcon inherits SystemTrayIcon {
+    in property <bool> running: false;
+    in property <string> status-text: "Focus · 25:00";
+
+    callback show-window();
+    callback hide-window();
+    callback toggle-timer();
+    callback reset-timer();
+    callback skip-timer();
+    callback quit-app();
+
+    icon: @image-url("../../assets/tray-icon.png");
+    tooltip: "Gomo · \{root.status-text}";
+
+    clicked => { root.show-window(); }
+
+    Menu {
+        MenuItem {
+            title: "Show Window";
+            activated => { root.show-window(); }
+        }
+        MenuItem {
+            title: "Hide Window";
+            activated => { root.hide-window(); }
+        }
+        MenuSeparator { }
+        MenuItem {
+            title: root.running ? "Pause" : "Start";
+            activated => { root.toggle-timer(); }
+        }
+        MenuItem {
+            title: "Reset";
+            activated => { root.reset-timer(); }
+        }
+        MenuItem {
+            title: "Skip";
+            activated => { root.skip-timer(); }
+        }
+        MenuSeparator { }
+        MenuItem {
+            title: "Quit Gomo";
+            activated => { root.quit-app(); }
+        }
+    }
+}
+
+export component MainWindow inherits Window {
+    title: "Gomo";
+    icon: @image-url("../../assets/app-icon.png");
+    min-width: 350px;
+    min-height: 590px;
+    max-width: 350px;
+    max-height: 590px;
+    background: root.bg-color;
+    default-font-family: "'Segoe UI', 'SF Pro Text', -apple-system, Roboto, sans-serif";
+
+    // timer state
+    in-out property <int> time-remaining-secs: 1500;
+    in-out property <int> total-duration-secs: 1500;
+    in-out property <string> time-display: "25:00";
+    in-out property <int> active-mode: 0; // 0 = Study, 1 = Rest, 2 = Deep Rest
+    in-out property <bool> is-running: false;
+    in-out property <int> cycle-focus-count: 0;
+    in-out property <int> sessions-until-long-break: 4;
+    in-out property <float> progress-fraction: 1.0;
+    in-out property <string> arc-path: "M 110 20 A 90 90 0 1 1 110 200 A 90 90 0 1 1 110 20";
+    in-out property <length> knob-x: 103px;
+    in-out property <length> knob-y: 13px;
+
+    // settings state
+    in-out property <bool> show-settings: false;
+    in-out property <int> focus-duration: 25;
+    in-out property <int> short-break-duration: 5;
+    in-out property <int> long-break-duration: 15;
+    in-out property <int> long-break-interval: 4;
+    in-out property <bool> sound-enabled: true;
+    in-out property <int> sound-volume: 100;
+    in-out property <bool> auto-start-breaks: false;
+    in-out property <bool> auto-start-focus: false;
+
+    // statistics state
+    in-out property <bool> show-stats: false;
+    in-out property <int> stats-range: 0;
+    in-out property <string> chart-range-label: "Last 7 days";
+    in-out property <[ChartBar]> chart-bars: [];
+    in-out property <[TaskSlice]> task-slices: [];
+    in-out property <int> task-slice-count: 0;
+    in-out property <string> stat-range-title: "LAST 7 DAYS";
+    in-out property <string> stat-range-value: "0 min";
+    in-out property <string> stat-range-sub: "0 sessions";
+    in-out property <string> stat-streak-value: "0 days";
+    in-out property <string> stat-streak-sub: "Finish a session to start";
+    in-out property <string> stat-best-value: "—";
+    in-out property <string> stat-best-sub: "No sessions";
+    in-out property <int> heatmap-weeks: 26;
+    in-out property <[HeatCell]> heatmap-cells: [];
+    in-out property <string> heatmap-range: "";
+
+    // tasks state
+    in-out property <bool> show-tasks: false;
+    in-out property <string> active-task: "General";
+    in-out property <[TaskItem]> task-list: [];
+    in-out property <string> task-error: "";
+    in property <int> task-limit: 8;
+
+    // notice
+    in-out property <bool> notice-visible: false;
+    in-out property <string> notice-text: "";
+
+    // data page
+    in-out property <bool> show-data: false;
+    in-out property <string> data-path: "";
+    in-out property <string> data-status: "";
+
+    // goals
+    in-out property <bool> show-goals: false;
+    in-out property <int> daily-goal: 100;
+    in-out property <int> weekly-goal: 500;
+    in-out property <bool> daily-goal-visible: true;
+    in-out property <string> daily-goal-text: "0 / 100 min";
+    in-out property <float> daily-goal-fraction: 0.0;
+    in-out property <string> daily-goal-progress: "";
+    in-out property <float> daily-goal-progress-fraction: 0.0;
+    in-out property <string> weekly-goal-progress: "";
+    in-out property <float> weekly-goal-progress-fraction: 0.0;
+
+    // keys only fire on the main screen
+    property <bool> shortcuts-enabled: !show-settings && !show-stats && !show-tasks && !show-data && !show-goals;
+
+    // callbacks to Rust
+    callback start-pause-clicked();
+    callback skip-clicked();
+    callback reset-clicked();
+    callback mode-selected(int);
+    callback settings-saved();
+    callback settings-reset-defaults();
+    callback stats-clicked();
+    callback stats-range-selected(int);
+    callback tasks-clicked();
+    callback task-selected(string);
+    callback task-added(string);
+    callback task-deleted(string);
+    callback dismiss-notice();
+    callback data-clicked();
+    callback data-export-csv();
+    callback data-export-json();
+    callback data-import-json();
+    callback data-backup();
+    callback data-restore-backup();
+    callback goals-clicked();
+    callback goals-changed();
+
+    // colors per mode
+    property <bool> is-work-mode: active-mode == 0;
+
+    property <color> bg-color: is-work-mode 
+        ? Theme.work-bg 
+        : (active-mode == 1 ? Theme.rest-bg : Theme.deep-rest-bg);
+
+    property <color> text-color: is-work-mode 
+        ? Theme.work-text 
+        : Theme.rest-text;
+
+    property <color> track-color: is-work-mode 
+        ? Theme.work-track 
+        : (active-mode == 1 ? Theme.rest-track : Theme.deep-rest-disc);
+
+    property <color> arc-color: is-work-mode 
+        ? Theme.work-primary 
+        : Theme.rest-primary;
+
+    property <color> knob-color: is-work-mode 
+        ? Theme.work-primary 
+        : Theme.rest-primary;
+
+    property <color> dot-active: is-work-mode 
+        ? Theme.work-primary 
+        : Theme.rest-primary;
+
+    property <color> dot-inactive: is-work-mode 
+        ? Theme.work-dot-inactive 
+        : Theme.rest-dot-inactive;
+
+    property <color> btn-bg: is-work-mode 
+        ? Theme.work-primary 
+        : Theme.rest-primary;
+
+    property <color> btn-icon-color: is-work-mode 
+        ? #FFFFFF 
+        : (active-mode == 1 ? Theme.rest-bg : Theme.deep-rest-bg);
+
+    property <string> mode-label: is-work-mode 
+        ? "Study Mode" 
+        : (active-mode == 1 ? "Rest" : "Deep Rest");
+
+    property <string> btn-label: is-running 
+        ? "Pause" 
+        : (time-remaining-secs == total-duration-secs ? "Start" : "Resume");
+
+    public function focus-shortcuts() {
+        main-focus.focus();
+    }
+
+    changed show-settings => {
+        if (!root.show-settings) { main-focus.focus(); }
+    }
+    changed show-stats => {
+        if (!root.show-stats) { main-focus.focus(); }
+    }
+    changed show-tasks => {
+        if (!root.show-tasks) { main-focus.focus(); }
+    }
+
+    // root
+    main-focus := FocusScope {
+        width: 100%;
+        height: 100%;
+        focus-on-click: true;
+        init => { self.focus(); }
+
+        KeyBinding {
+            keys: @keys(Space);
+            enabled: root.shortcuts-enabled;
+            activated => { root.start-pause-clicked(); }
+        }
+        KeyBinding {
+            keys: @keys(R);
+            enabled: root.shortcuts-enabled;
+            activated => { root.reset-clicked(); }
+        }
+        KeyBinding {
+            keys: @keys(S);
+            enabled: root.shortcuts-enabled;
+            activated => { root.skip-clicked(); }
+        }
+        KeyBinding {
+            keys: @keys("1");
+            enabled: root.shortcuts-enabled;
+            activated => { root.mode-selected(0); }
+        }
+        KeyBinding {
+            keys: @keys("2");
+            enabled: root.shortcuts-enabled;
+            activated => { root.mode-selected(1); }
+        }
+        KeyBinding {
+            keys: @keys("3");
+            enabled: root.shortcuts-enabled;
+            activated => { root.mode-selected(2); }
+        }
+
+        Rectangle {
+            width: 100%;
+            height: 100%;
+            background: root.bg-color;
+
+        animate background { duration: 250ms; }
+
+        dismiss-bg := TouchArea {
+            width: 100%;
+            height: 100%;
+            clicked => {
+                root.notice-visible = false;
+                root.dismiss-notice();
+            }
+        }
+
+        // main screen
+        if !root.show-settings && !root.show-stats && !root.show-tasks && !root.show-data && !root.show-goals : VerticalLayout {
+            padding-left: 24px;
+            padding-right: 24px;
+            padding-top: 16px;
+            padding-bottom: 20px;
+            alignment: space-between;
+
+            // top bar: reset / mode tabs / stats + settings
+            HorizontalLayout {
+                height: 32px;
+
+                // left: wordmark + reset
+                HorizontalLayout {
+                    width: 72px;
+                    alignment: start;
+                    spacing: 6px;
+
+                    Text {
+                        text: "GOMO";
+                        color: root.is-work-mode ? #758D79 : #A5CDAF;
+                        font-size: 10px;
+                        font-weight: 800;
+                        letter-spacing: 1.1px;
+                        vertical-alignment: center;
+                    }
+
+                    Rectangle {
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 16px;
+                        background: reset-touch.has-hover ? (root.is-work-mode ? #F0F4F1 : #3F6748) : #00000000;
+
+                        ResetIcon {
+                            stroke-color: root.text-color;
+                        }
+
+                        reset-touch := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => { root.reset-clicked(); }
+                        }
+                    }
+                }
+
+                // center: mode tabs
+                HorizontalLayout {
+                    horizontal-stretch: 1;
+                    alignment: center;
+
+                    Rectangle {
+                        height: 30px;
+                        border-radius: 15px;
+                        background: root.is-work-mode ? #F2F6F3 : (root.active-mode == 1 ? #3F6748 : #2F523E);
+
+                        HorizontalLayout {
+                            padding-left: 3px;
+                            padding-right: 3px;
+                            spacing: 2px;
+
+                            // study tab
+                            Rectangle {
+                                border-radius: 13px;
+                                background: root.active-mode == 0 ? (root.is-work-mode ? #FFFFFF : #00000000) : #00000000;
+                                HorizontalLayout {
+                                    padding-left: 9px;
+                                    padding-right: 9px;
+                                    Text {
+                                        text: "Study";
+                                        color: root.active-mode == 0 ? Theme.work-primary : (root.is-work-mode ? #758D79 : #A5CDAF);
+                                        font-size: 11px;
+                                        font-weight: 700;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                                TouchArea {
+                                    mouse-cursor: pointer;
+                                    clicked => { root.mode-selected(0); }
+                                }
+                            }
+
+                            // rest tab
+                            Rectangle {
+                                border-radius: 13px;
+                                background: root.active-mode == 1 ? #FFFFFF : #00000000;
+                                HorizontalLayout {
+                                    padding-left: 9px;
+                                    padding-right: 9px;
+                                    Text {
+                                        text: "Rest";
+                                        color: root.active-mode == 1 ? Theme.work-primary : (root.is-work-mode ? #758D79 : #A5CDAF);
+                                        font-size: 11px;
+                                        font-weight: 700;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                                TouchArea {
+                                    mouse-cursor: pointer;
+                                    clicked => { root.mode-selected(1); }
+                                }
+                            }
+
+                            // deep rest tab
+                            Rectangle {
+                                border-radius: 13px;
+                                background: root.active-mode == 2 ? #FFFFFF : #00000000;
+                                HorizontalLayout {
+                                    padding-left: 9px;
+                                    padding-right: 9px;
+                                    Text {
+                                        text: "Deep";
+                                        color: root.active-mode == 2 ? Theme.work-primary : (root.is-work-mode ? #758D79 : #A5CDAF);
+                                        font-size: 11px;
+                                        font-weight: 700;
+                                        vertical-alignment: center;
+                                    }
+                                }
+                                TouchArea {
+                                    mouse-cursor: pointer;
+                                    clicked => { root.mode-selected(2); }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // right: stats + settings
+                HorizontalLayout {
+                    width: 72px;
+                    alignment: end;
+                    spacing: 8px;
+
+                    Rectangle {
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 16px;
+                        background: stats-touch.has-hover ? (root.is-work-mode ? #F0F4F1 : #3F6748) : #00000000;
+
+                        StatsIcon {
+                            stroke-color: root.text-color;
+                        }
+
+                        stats-touch := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                root.dismiss-notice();
+                                root.show-stats = true;
+                                root.show-settings = false;
+                                root.show-tasks = false;
+                                root.stats-clicked();
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 16px;
+                        background: gear-touch.has-hover ? (root.is-work-mode ? #F0F4F1 : #3F6748) : #00000000;
+
+                        SettingsIcon {
+                            stroke-color: root.text-color;
+                        }
+
+                        gear-touch := TouchArea {
+                            mouse-cursor: pointer;
+                            clicked => {
+                                root.dismiss-notice();
+                                root.show-settings = true;
+                                root.show-stats = false;
+                                root.show-tasks = false;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // cycle dots (one per session in the cycle)
+            HorizontalLayout {
+                spacing: 14px;
+                alignment: center;
+                height: 18px;
+
+                for i in root.sessions-until-long-break : Rectangle {
+                    width: 14px;
+                    height: 14px;
+                    border-radius: 7px;
+                    background: root.dot-inactive;
+
+                    // done
+                    if i < Math.mod(root.cycle-focus-count, root.sessions-until-long-break) : Rectangle {
+                        width: 100%;
+                        height: 100%;
+                        border-radius: 7px;
+                        background: root.dot-active;
+                    }
+
+                    // current
+                    if i == Math.mod(root.cycle-focus-count, root.sessions-until-long-break) : Rectangle {
+                        width: 100%;
+                        height: 100%;
+                        border-radius: 7px;
+                        border-width: 2px;
+                        border-color: root.dot-active;
+                        background: root.bg-color;
+
+                        Rectangle {
+                            width: 6px;
+                            height: 6px;
+                            border-radius: 3px;
+                            background: root.dot-active;
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                        }
+                    }
+                }
+            }
+
+            // task chip
+            HorizontalLayout {
+                alignment: center;
+                Rectangle {
+                    height: 26px;
+                    border-radius: 13px;
+                    background: task-chip-touch.has-hover ? (root.is-work-mode ? #EAEFEA : #3F6748) : (root.is-work-mode ? #F2F6F3 : #385E40);
+
+                    task-chip-touch := TouchArea {
+                        width: 100%;
+                        height: 100%;
+                        clicked => {
+                            root.dismiss-notice();
+                            root.show-tasks = true;
+                            root.show-settings = false;
+                            root.show-stats = false;
+                            root.tasks-clicked();
+                        }
+                    }
+
+                    HorizontalLayout {
+                        padding-left: 12px;
+                        padding-right: 12px;
+                        alignment: center;
+                        spacing: 6px;
+
+                        Text {
+                            text: "TASK";
+                            color: root.is-work-mode ? #758D79 : #A5CDAF;
+                            font-size: 9px;
+                            font-weight: 700;
+                            letter-spacing: 0.8px;
+                            vertical-alignment: center;
+                        }
+                        Text {
+                            text: root.active-task;
+                            color: root.text-color;
+                            font-size: 11px;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                        }
+                        Text {
+                            text: "▾";
+                            color: root.is-work-mode ? #758D79 : #A5CDAF;
+                            font-size: 9px;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+            }
+
+            if root.daily-goal-visible : VerticalLayout {
+                height: 22px;
+                spacing: 3px;
+
+                HorizontalLayout {
+                    alignment: space-between;
+
+                    Text {
+                        text: "TODAY";
+                        color: root.is-work-mode ? #758D79 : #A5CDAF;
+                        font-size: 8px;
+                        font-weight: 700;
+                        letter-spacing: 0.8px;
+                    }
+                    Text {
+                        text: root.daily-goal-text;
+                        color: root.is-work-mode ? #758D79 : #A5CDAF;
+                        font-size: 9px;
+                    }
+                }
+
+                Rectangle {
+                    width: 100%;
+                    height: 4px;
+                    border-radius: 2px;
+                    background: root.track-color;
+
+                    Rectangle {
+                        width: parent.width * root.daily-goal-fraction;
+                        height: 100%;
+                        border-radius: 2px;
+                        background: root.arc-color;
+                    }
+                }
+            }
+
+            // dial + knob
+            VerticalLayout {
+                alignment: center;
+                height: 230px;
+
+                Rectangle {
+                    width: 220px;
+                    height: 220px;
+                    x: (parent.width - self.width) / 2;
+
+                    // inner disc on break modes
+                    if !root.is-work-mode : Rectangle {
+                        width: 176px;
+                        height: 176px;
+                        x: 22px;
+                        y: 22px;
+                        border-radius: 88px;
+                        background: root.active-mode == 1 ? Theme.rest-disc : Theme.deep-rest-disc;
+                    }
+
+                    // track: same radius as calculate_gauge() in main.rs
+                    Path {
+                        width: 220px;
+                        height: 220px;
+                        viewbox-x: 0;
+                        viewbox-y: 0;
+                        viewbox-width: 220;
+                        viewbox-height: 220;
+                        commands: "M 110 20 A 90 90 0 1 1 110 200 A 90 90 0 1 1 110 20";
+                        stroke: root.track-color;
+                        stroke-width: 3.5px;
+                        fill: #00000000;
+                    }
+
+                    // remaining arc
+                    Path {
+                        width: 220px;
+                        height: 220px;
+                        viewbox-x: 0;
+                        viewbox-y: 0;
+                        viewbox-width: 220;
+                        viewbox-height: 220;
+                        commands: root.arc-path;
+                        stroke: root.arc-color;
+                        stroke-width: 3.5px;
+                        fill: #00000000;
+                    }
+
+                    // knob
+                    Rectangle {
+                        x: root.knob-x;
+                        y: root.knob-y;
+                        width: 14px;
+                        height: 14px;
+                        border-radius: 7px;
+                        background: root.knob-color;
+                    }
+
+                    // time
+                    VerticalLayout {
+                        alignment: center;
+                        Text {
+                            text: root.time-display;
+                            color: root.text-color;
+                            font-size: 40px;
+                            font-weight: 700;
+                            letter-spacing: -0.5px;
+                            horizontal-alignment: center;
+                        }
+                    }
+                }
+            }
+
+            // mode label + icon
+            VerticalLayout {
+                alignment: center;
+                spacing: 10px;
+                height: 64px;
+
+                Text {
+                    text: root.mode-label;
+                    color: root.text-color;
+                    font-size: 14px;
+                    font-weight: 600;
+                    letter-spacing: 1.5px;
+                    horizontal-alignment: center;
+                }
+
+                HorizontalLayout {
+                    alignment: center;
+                    if root.is-work-mode : MonitorIcon {
+                        stroke-color: root.text-color;
+                    }
+                    if !root.is-work-mode && root.active-mode == 1 : SproutIcon {
+                        stroke-color: root.text-color;
+                    }
+                    if !root.is-work-mode && root.active-mode == 2 : CoffeeIcon {
+                        stroke-color: root.text-color;
+                    }
+                }
+            }
+
+            // start / pause
+            VerticalLayout {
+                alignment: center;
+                spacing: 8px;
+                height: 96px;
+
+                // round button
+                Rectangle {
+                    width: 64px;
+                    height: 64px;
+                    x: (parent.width - self.width) / 2;
+                    border-radius: 32px;
+                    background: btn-touch.pressed ? (root.is-work-mode ? #2F5237 : #D6E2D8) : (btn-touch.has-hover ? (root.is-work-mode ? #467550 : #F2F7F3) : root.btn-bg);
+
+                    animate background { duration: 150ms; }
+
+                    VerticalLayout {
+                        alignment: center;
+                        HorizontalLayout {
+                            alignment: center;
+
+                            // pause
+                            if root.is-running : HorizontalLayout {
+                                spacing: 5px;
+                                alignment: center;
+                                Rectangle { width: 4px; height: 18px; background: root.btn-icon-color; border-radius: 1px; }
+                                Rectangle { width: 4px; height: 18px; background: root.btn-icon-color; border-radius: 1px; }
+                            }
+
+                            // play
+                            if !root.is-running : Path {
+                                width: 16px;
+                                height: 18px;
+                                viewbox-x: 0;
+                                viewbox-y: 0;
+                                viewbox-width: 16;
+                                viewbox-height: 18;
+                                commands: "M 2 0 L 16 9 L 2 18 Z";
+                                fill: root.btn-icon-color;
+                            }
+                        }
+                    }
+
+                    btn-touch := TouchArea {
+                        clicked => { root.start-pause-clicked(); }
+                    }
+                }
+
+                // start / pause / resume label
+                Text {
+                    text: root.btn-label;
+                    color: root.text-color;
+                    font-size: 13px;
+                    font-weight: 600;
+                    letter-spacing: 1.2px;
+                    horizontal-alignment: center;
+                }
+            }
+        }
+
+        // settings
+        if root.show-settings : SettingsView {
+            is-dark: !root.is-work-mode;
+            focus-duration <=> root.focus-duration;
+            short-break-duration <=> root.short-break-duration;
+            long-break-duration <=> root.long-break-duration;
+            long-break-interval <=> root.long-break-interval;
+            sound-enabled <=> root.sound-enabled;
+            sound-volume <=> root.sound-volume;
+            auto-start-breaks <=> root.auto-start-breaks;
+            auto-start-focus <=> root.auto-start-focus;
+
+            back-clicked => {
+                root.dismiss-notice();
+                root.show-settings = false;
+                root.settings-saved();
+            }
+
+            reset-defaults => {
+                root.settings-reset-defaults();
+            }
+
+            open-data => {
+                root.settings-saved();
+                root.show-settings = false;
+                root.show-data = true;
+                root.data-clicked();
+            }
+        }
+
+        // data
+        if root.show-data : DataView {
+            is-dark: !root.is-work-mode;
+            data-path: root.data-path;
+            status-text: root.data-status;
+
+            back-clicked => {
+                root.show-data = false;
+                root.show-settings = true;
+            }
+
+            export-csv => { root.data-export-csv(); }
+            export-json => { root.data-export-json(); }
+            import-json => { root.data-import-json(); }
+            backup-now => { root.data-backup(); }
+            restore-backup => { root.data-restore-backup(); }
+        }
+
+        // stats
+        if root.show-stats : StatsView {
+            is-dark: !root.is-work-mode;
+            range-index: root.stats-range;
+            range-title: root.stat-range-title;
+            range-value: root.stat-range-value;
+            range-sub: root.stat-range-sub;
+            chart-range-label: root.chart-range-label;
+            chart-bars: root.chart-bars;
+            task-slices: root.task-slices;
+            task-slice-count: root.task-slice-count;
+            streak-value: root.stat-streak-value;
+            streak-sub: root.stat-streak-sub;
+            best-value: root.stat-best-value;
+            best-sub: root.stat-best-sub;
+            weeks: root.heatmap-weeks;
+            cells: root.heatmap-cells;
+            heatmap-range: root.heatmap-range;
+
+            range-selected(index) => {
+                root.stats-range-selected(index);
+            }
+
+            goals-clicked => {
+                root.dismiss-notice();
+                root.show-stats = false;
+                root.show-goals = true;
+                root.goals-clicked();
+            }
+
+            back-clicked => {
+                root.dismiss-notice();
+                root.show-stats = false;
+            }
+        }
+
+        // goals
+        if root.show-goals : GoalsView {
+            is-dark: !root.is-work-mode;
+            daily-goal <=> root.daily-goal;
+            weekly-goal <=> root.weekly-goal;
+            daily-progress: root.daily-goal-progress;
+            daily-fraction: root.daily-goal-progress-fraction;
+            weekly-progress: root.weekly-goal-progress;
+            weekly-fraction: root.weekly-goal-progress-fraction;
+
+            goals-changed => {
+                root.goals-changed();
+            }
+
+            back-clicked => {
+                root.show-goals = false;
+                root.show-stats = true;
+            }
+        }
+
+        // tasks
+        if root.show-tasks : TasksView {
+            is-dark: !root.is-work-mode;
+            tasks: root.task-list;
+            active-task: root.active-task;
+            error-text: root.task-error;
+            task-limit: root.task-limit;
+
+            back-clicked => {
+                root.dismiss-notice();
+                root.show-tasks = false;
+            }
+
+            task-selected(name) => {
+                root.task-selected(name);
+            }
+
+            task-added(name) => {
+                root.task-added(name);
+            }
+
+            task-deleted(name) => {
+                root.task-deleted(name);
+            }
+        }
+
+        if root.notice-visible : Rectangle {
+            x: (parent.width - self.width) / 2;
+            y: 54px;
+            width: 282px;
+            height: 28px;
+            border-radius: 14px;
+            background: root.is-work-mode ? #223827 : #FFFFFF;
+
+            Text {
+                text: root.notice-text;
+                color: root.is-work-mode ? #FFFFFF : Theme.work-primary;
+                font-size: 10px;
+                font-weight: 600;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+
+            TouchArea {
+                width: 100%;
+                height: 100%;
+                clicked => {
+                    root.notice-visible = false;
+                    root.dismiss-notice();
+                }
+            }
+        }
+    }
+    }
+}

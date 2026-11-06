@@ -1,0 +1,483 @@
+import { Theme } from "theme.slint";
+import { BackArrowIcon } from "icons.slint";
+
+export struct HeatCell {
+    level: int,
+    label: string,
+    col: int,
+    row: int,
+}
+
+export struct ChartBar {
+    axis: string,
+    height-px: int,
+    width-px: int,
+}
+
+export struct TaskSlice {
+    name: string,
+    minutes: int,
+    fraction: float,
+}
+
+component StatCard inherits Rectangle {
+    in property <string> title;
+    in property <string> value;
+    in property <string> subtitle;
+    in property <bool> dark: false;
+
+    height: 56px;
+    border-radius: 12px;
+    background: root.dark ? Theme.rest-disc : #F3F7F4;
+
+    VerticalLayout {
+        padding-left: 10px;
+        padding-right: 8px;
+        padding-top: 7px;
+        padding-bottom: 5px;
+        spacing: 0px;
+
+        Text {
+            text: root.title;
+            color: root.dark ? #95BCA0 : #7B9480;
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+        }
+        Text {
+            text: root.value;
+            color: root.dark ? #FFFFFF : Theme.work-text;
+            font-size: 16px;
+            font-weight: 700;
+        }
+        Text {
+            text: root.subtitle;
+            color: root.dark ? #A5CDAF : #6C8571;
+            font-size: 9px;
+            overflow: elide;
+        }
+    }
+}
+
+component RangeTab inherits Rectangle {
+    in property <string> label;
+    in property <bool> active: false;
+    in property <bool> dark: false;
+    callback selected();
+
+    height: 22px;
+    border-radius: 11px;
+    background: root.active ? #FFFFFF : #00000000;
+
+    HorizontalLayout {
+        padding-left: 9px;
+        padding-right: 9px;
+        alignment: center;
+
+        Text {
+            text: root.label;
+            color: root.active ? Theme.work-primary : (root.dark ? #A5CDAF : #758D79);
+            font-size: 9px;
+            font-weight: 700;
+            vertical-alignment: center;
+        }
+    }
+
+    TouchArea {
+        clicked => { root.selected(); }
+    }
+}
+
+component HeatmapCell inherits Rectangle {
+    in property <color> fill;
+    in property <string> label;
+    callback hovered(string);
+
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+    background: root.fill;
+
+    TouchArea {
+        changed has-hover => {
+            if (self.has-hover) {
+                root.hovered(root.label);
+            }
+        }
+
+    }
+}
+
+component LegendSwatch inherits Rectangle {
+    in property <color> fill;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    background: root.fill;
+}
+
+export component StatsView inherits Rectangle {
+    in property <bool> is-dark: false;
+    in property <int> range-index: 0;
+    in property <string> range-title;
+    in property <string> range-value;
+    in property <string> range-sub;
+    in property <string> chart-range-label;
+    in property <[ChartBar]> chart-bars;
+    in property <[TaskSlice]> task-slices;
+    in property <int> task-slice-count: 0;
+    in property <string> streak-value;
+    in property <string> streak-sub;
+    in property <string> best-value;
+    in property <string> best-sub;
+    in property <int> weeks: 26;
+    in property <[HeatCell]> cells;
+    in property <string> heatmap-range;
+
+    callback back-clicked();
+    callback range-selected(int);
+    callback goals-clicked();
+
+    width: 100%;
+    height: 100%;
+
+    property <color> text-col: is-dark ? #FFFFFF : Theme.work-text;
+    property <color> muted-col: is-dark ? #A5CDAF : #6C8571;
+    property <color> track-col: is-dark ? #5E8A67 : #E2E8E3;
+    property <color> bar-col: is-dark ? #FFFFFF : Theme.work-primary;
+
+    property <color> h0: is-dark ? Theme.heat-dark-0 : Theme.heat-0;
+    property <color> h1: is-dark ? Theme.heat-dark-1 : Theme.heat-1;
+    property <color> h2: is-dark ? Theme.heat-dark-2 : Theme.heat-2;
+    property <color> h3: is-dark ? Theme.heat-dark-3 : Theme.heat-3;
+    property <color> h4: is-dark ? Theme.heat-dark-4 : Theme.heat-4;
+
+    property <string> hover-label: "Hover a day";
+    property <length> heat-width: root.weeks * 11px - 2px;
+
+    VerticalLayout {
+        padding-left: 20px;
+        padding-right: 20px;
+        padding-top: 16px;
+        padding-bottom: 16px;
+        spacing: 8px;
+        alignment: start;
+
+        HorizontalLayout {
+            height: 32px;
+            alignment: space-between;
+
+            Rectangle {
+                width: 32px;
+                height: 32px;
+                border-radius: 16px;
+                background: back-touch.has-hover ? (root.is-dark ? #41684B : #EDF2EE) : #00000000;
+
+                BackArrowIcon {
+                    stroke-color: root.text-col;
+                }
+
+                back-touch := TouchArea {
+                    clicked => { root.back-clicked(); }
+                }
+            }
+
+            Text {
+                text: "Statistics";
+                color: root.text-col;
+                font-size: 15px;
+                font-weight: 700;
+                letter-spacing: 0.5px;
+                vertical-alignment: center;
+            }
+
+            Rectangle { width: 32px; }
+        }
+
+        HorizontalLayout {
+            alignment: center;
+
+            Rectangle {
+                height: 26px;
+                border-radius: 13px;
+                background: root.is-dark ? Theme.rest-disc : #F2F6F3;
+
+                HorizontalLayout {
+                    padding: 2px;
+                    spacing: 2px;
+
+                    RangeTab {
+                        label: "Week";
+                        active: root.range-index == 0;
+                        dark: root.is-dark;
+                        selected => { root.range-selected(0); }
+                    }
+                    RangeTab {
+                        label: "Month";
+                        active: root.range-index == 1;
+                        dark: root.is-dark;
+                        selected => { root.range-selected(1); }
+                    }
+                    RangeTab {
+                        label: "Year";
+                        active: root.range-index == 2;
+                        dark: root.is-dark;
+                        selected => { root.range-selected(2); }
+                    }
+                }
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 8px;
+
+            StatCard {
+                title: root.range-title;
+                value: root.range-value;
+                subtitle: root.range-sub;
+                dark: root.is-dark;
+                horizontal-stretch: 1;
+            }
+            StatCard {
+                title: "STREAK";
+                value: root.streak-value;
+                subtitle: root.streak-sub;
+                dark: root.is-dark;
+                horizontal-stretch: 1;
+            }
+            StatCard {
+                title: "BEST DAY";
+                value: root.best-value;
+                subtitle: root.best-sub;
+                dark: root.is-dark;
+                horizontal-stretch: 1;
+            }
+        }
+
+        VerticalLayout {
+            spacing: 5px;
+
+            HorizontalLayout {
+                alignment: space-between;
+
+                Text {
+                    text: "FOCUS";
+                    color: root.muted-col;
+                    font-size: 9px;
+                    font-weight: 700;
+                    letter-spacing: 0.8px;
+                }
+                Text {
+                    text: root.chart-range-label;
+                    color: root.muted-col;
+                    font-size: 9px;
+                }
+            }
+
+            HorizontalLayout {
+                height: 92px;
+                spacing: 2px;
+
+                for bar in root.chart-bars : VerticalLayout {
+                    horizontal-stretch: 1;
+                    alignment: end;
+                    spacing: 3px;
+
+                    HorizontalLayout {
+                        alignment: center;
+
+                        Rectangle {
+                            width: bar.width-px * 1px;
+                            height: bar.height-px * 1px;
+                            background: root.bar-col;
+                            border-radius: 2px;
+                        }
+                    }
+
+                    Text {
+                        text: bar.axis;
+                        color: root.muted-col;
+                        font-size: 8px;
+                        height: 9px;
+                        horizontal-alignment: center;
+                    }
+                }
+            }
+        }
+
+        VerticalLayout {
+            spacing: 4px;
+
+            HorizontalLayout {
+                alignment: space-between;
+
+                Text {
+                    text: "ACTIVITY";
+                    color: root.muted-col;
+                    font-size: 9px;
+                    font-weight: 700;
+                    letter-spacing: 0.8px;
+                }
+                Text {
+                    text: "top tasks";
+                    color: root.muted-col;
+                    font-size: 9px;
+                }
+            }
+
+            if root.task-slice-count == 0 : Text {
+                text: "No focus sessions in this range";
+                color: root.muted-col;
+                font-size: 9px;
+            }
+
+            for slice in root.task-slices : HorizontalLayout {
+                height: 18px;
+                spacing: 8px;
+
+                Text {
+                    text: slice.name;
+                    width: 92px;
+                    color: root.text-col;
+                    font-size: 10px;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    alignment: center;
+
+                    Rectangle {
+                        width: 100%;
+                        height: 5px;
+                        border-radius: 2.5px;
+                        background: root.track-col;
+
+                        Rectangle {
+                            width: parent.width * slice.fraction;
+                            height: 100%;
+                            border-radius: 2.5px;
+                            background: root.bar-col;
+                        }
+                    }
+                }
+
+                Text {
+                    text: "\{slice.minutes}m";
+                    width: 34px;
+                    color: root.muted-col;
+                    font-size: 9px;
+                    horizontal-alignment: right;
+                    vertical-alignment: center;
+                }
+            }
+        }
+
+        VerticalLayout {
+            spacing: 4px;
+
+            HorizontalLayout {
+                alignment: space-between;
+
+                Text {
+                    text: "\{root.weeks}-WEEK HEATMAP";
+                    color: root.muted-col;
+                    font-size: 9px;
+                    font-weight: 700;
+                    letter-spacing: 0.8px;
+                }
+                Text {
+                    text: root.heatmap-range;
+                    color: root.muted-col;
+                    font-size: 9px;
+                }
+            }
+
+            HorizontalLayout {
+                alignment: center;
+
+                Rectangle {
+                    width: root.heat-width;
+                    height: 75px;
+
+                    for cell in root.cells : HeatmapCell {
+                        x: cell.col * 11px;
+                        y: cell.row * 11px;
+                        visible: cell.level >= 0;
+                        fill: cell.level <= 0
+                            ? root.h0
+                            : cell.level == 1
+                                ? root.h1
+                                : cell.level == 2
+                                    ? root.h2
+                                    : cell.level == 3
+                                        ? root.h3
+                                        : root.h4;
+                        label: cell.label;
+                        hovered(label) => { root.hover-label = label; }
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                alignment: space-between;
+
+                HorizontalLayout {
+                    spacing: 3px;
+
+                    Text {
+                        text: "Less";
+                        color: root.muted-col;
+                        font-size: 8px;
+                    }
+                    LegendSwatch { fill: root.h0; }
+                    LegendSwatch { fill: root.h1; }
+                    LegendSwatch { fill: root.h2; }
+                    LegendSwatch { fill: root.h3; }
+                    LegendSwatch { fill: root.h4; }
+                    Text {
+                        text: "More";
+                        color: root.muted-col;
+                        font-size: 8px;
+                    }
+                }
+
+                Text {
+                    text: root.hover-label;
+                    color: root.muted-col;
+                    font-size: 8px;
+                    width: 180px;
+                    horizontal-alignment: right;
+                    overflow: elide;
+                }
+            }
+        }
+
+        HorizontalLayout {
+            height: 26px;
+            alignment: center;
+
+            Rectangle {
+                width: 110px;
+                height: 26px;
+                border-radius: 13px;
+                background: root.is-dark ? Theme.rest-disc : #F2F6F3;
+
+                Text {
+                    text: "Goals";
+                    color: root.is-dark ? #FFFFFF : Theme.work-primary;
+                    font-size: 10px;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.goals-clicked(); }
+                }
+            }
+        }
+    }
+}

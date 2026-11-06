@@ -1,0 +1,147 @@
+import { Theme } from "theme.slint";
+import { BackArrowIcon } from "icons.slint";
+import { SettingStepper } from "settings.slint";
+
+component GoalBar inherits Rectangle {
+    in property <float> fraction;
+    in property <color> track;
+    in property <color> fill;
+
+    height: 5px;
+    border-radius: 2.5px;
+    background: root.track;
+
+    Rectangle {
+        width: parent.width * root.fraction;
+        height: 100%;
+        border-radius: 2.5px;
+        background: root.fill;
+    }
+}
+
+export component GoalsView inherits Rectangle {
+    in property <bool> is-dark: false;
+    in-out property <int> daily-goal: 100;
+    in-out property <int> weekly-goal: 500;
+    in property <string> daily-progress;
+    in property <float> daily-fraction;
+    in property <string> weekly-progress;
+    in property <float> weekly-fraction;
+
+    callback back-clicked();
+    callback goals-changed();
+
+    width: 100%;
+    height: 100%;
+
+    property <color> text-col: is-dark ? #FFFFFF : Theme.work-text;
+    property <color> muted-col: is-dark ? #A5CDAF : #6C8571;
+    property <color> track-col: is-dark ? #5E8A67 : #E2E8E3;
+    property <color> fill-col: is-dark ? #FFFFFF : Theme.work-primary;
+
+    VerticalLayout {
+        padding: 20px;
+        spacing: 10px;
+        alignment: start;
+
+        HorizontalLayout {
+            height: 32px;
+            alignment: space-between;
+
+            Rectangle {
+                width: 32px;
+                height: 32px;
+                border-radius: 16px;
+                background: back-touch.has-hover ? (root.is-dark ? #41684B : #EDF2EE) : #00000000;
+
+                BackArrowIcon {
+                    stroke-color: root.text-col;
+                }
+
+                back-touch := TouchArea {
+                    clicked => { root.back-clicked(); }
+                }
+            }
+
+            Text {
+                text: "Goals";
+                color: root.text-col;
+                font-size: 15px;
+                font-weight: 700;
+                letter-spacing: 0.5px;
+                vertical-alignment: center;
+            }
+
+            Rectangle { width: 32px; }
+        }
+
+        Text {
+            text: "DAILY";
+            color: root.muted-col;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+        }
+
+        SettingStepper {
+            label: "Daily Focus";
+            unit: "m";
+            value <=> root.daily-goal;
+            min-value: 0;
+            max-value: 600;
+            step: 25;
+            is-dark: root.is-dark;
+            changed(value) => { root.goals-changed(); }
+        }
+
+        GoalBar {
+            fraction: root.daily-fraction;
+            track: root.track-col;
+            fill: root.fill-col;
+        }
+
+        Text {
+            text: root.daily-progress;
+            color: root.muted-col;
+            font-size: 10px;
+        }
+
+        Text {
+            text: "WEEKLY";
+            color: root.muted-col;
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.8px;
+        }
+
+        SettingStepper {
+            label: "Weekly Focus";
+            unit: "m";
+            value <=> root.weekly-goal;
+            min-value: 0;
+            max-value: 4200;
+            step: 100;
+            is-dark: root.is-dark;
+            changed(value) => { root.goals-changed(); }
+        }
+
+        GoalBar {
+            fraction: root.weekly-fraction;
+            track: root.track-col;
+            fill: root.fill-col;
+        }
+
+        Text {
+            text: root.weekly-progress;
+            color: root.muted-col;
+            font-size: 10px;
+        }
+
+        Text {
+            text: "Set a goal to 0 to turn it off. Week starts on Monday.";
+            color: root.muted-col;
+            font-size: 9px;
+            wrap: word-wrap;
+        }
+    }
+}

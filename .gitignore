@@ -1,0 +1,9 @@
+/target
+/dist
+
+**/*.rs.bk
+*.log
+*.db
+*.db-*
+.DS_Store
+Thumbs.db

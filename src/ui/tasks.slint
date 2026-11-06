@@ -1,0 +1,329 @@
+import { Theme } from "theme.slint";
+import { BackArrowIcon } from "icons.slint";
+
+export struct TaskItem {
+    name: string,
+    deletable: bool,
+}
+
+component TaskRow inherits Rectangle {
+    in property <string> name;
+    in property <bool> active: false;
+    in property <bool> deletable: false;
+    in property <bool> dark: false;
+
+    callback selected();
+    callback deleted();
+
+    height: 40px;
+    border-radius: 12px;
+
+    property <color> card-bg: active 
+        ? (root.dark ? #2D4F35 : #E8F2EA) 
+        : (select-touch.has-hover 
+            ? (root.dark ? #416B4A : #E6EFE8) 
+            : (root.dark ? #385E40 : #F3F7F4));
+
+    property <color> card-border: active 
+        ? (root.dark ? #FFFFFF : #3E6947) 
+        : #00000000;
+
+    property <color> text-color: root.dark ? #FFFFFF : #223827;
+
+    background: root.card-bg;
+    border-width: root.active ? 1.5px : 0px;
+    border-color: root.card-border;
+
+    animate background { duration: 120ms; }
+    animate border-color { duration: 120ms; }
+
+    HorizontalLayout {
+        padding-left: 14px;
+        padding-right: 8px;
+        spacing: 8px;
+
+        // select area (circle + name)
+        select-region := Rectangle {
+            horizontal-stretch: 1;
+
+            HorizontalLayout {
+                spacing: 12px;
+                alignment: start;
+
+                // radio
+                VerticalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: 18px;
+                        height: 18px;
+                        border-radius: 9px;
+                        border-width: 2px;
+                        border-color: root.active 
+                            ? (root.dark ? #FFFFFF : #3E6947) 
+                            : (root.dark ? #7EAA87 : #A5B8A8);
+                        background: #00000000;
+
+                        if root.active : Rectangle {
+                            width: 8px;
+                            height: 8px;
+                            border-radius: 4px;
+                            background: root.dark ? #FFFFFF : #3E6947;
+                            x: (parent.width - self.width) / 2;
+                            y: (parent.height - self.height) / 2;
+                        }
+                    }
+                }
+
+                // name
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 1;
+                    Text {
+                        text: root.name;
+                        color: root.text-color;
+                        font-size: 13px;
+                        font-weight: root.active ? 700 : 500;
+                        overflow: elide;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+
+            select-touch := TouchArea {
+                width: 100%;
+                height: 100%;
+                mouse-cursor: pointer;
+                clicked => { root.selected(); }
+            }
+        }
+
+        // delete
+        if root.deletable : VerticalLayout {
+            alignment: center;
+            horizontal-stretch: 0;
+
+            del-btn := Rectangle {
+                width: 28px;
+                height: 28px;
+                border-radius: 14px;
+                background: del-touch.has-hover ? (root.dark ? #4F7956 : #DDE6DF) : #00000000;
+
+                animate background { duration: 100ms; }
+
+                // x icon
+                VerticalLayout {
+                    alignment: center;
+                    HorizontalLayout {
+                        alignment: center;
+                        Path {
+                            width: 10px;
+                            height: 10px;
+                            viewbox-x: 0;
+                            viewbox-y: 0;
+                            viewbox-width: 10;
+                            viewbox-height: 10;
+                            commands: "M 1 1 L 9 9 M 9 1 L 1 9";
+                            stroke: del-touch.has-hover 
+                                ? (root.dark ? #FF8888 : #D9443E) 
+                                : (root.dark ? #A5CDAF : #8FA393);
+                            stroke-width: 1.8px;
+                            fill: #00000000;
+                        }
+                    }
+                }
+
+                del-touch := TouchArea {
+                    width: 100%;
+                    height: 100%;
+                    mouse-cursor: pointer;
+                    clicked => { root.deleted(); }
+                }
+            }
+        }
+    }
+}
+
+export component TasksView inherits Rectangle {
+    in property <bool> is-dark: false;
+    in property <[TaskItem]> tasks;
+    in property <string> active-task;
+    in-out property <string> new-task-name: "";
+    in property <string> error-text;
+    in property <int> task-limit: 8;
+
+    callback back-clicked();
+    callback task-selected(string);
+    callback task-added(string);
+    callback task-deleted(string);
+
+    width: 100%;
+    height: 100%;
+    background: root.is-dark ? Theme.rest-bg : Theme.work-bg;
+
+    property <color> text-col: is-dark ? #FFFFFF : #223827;
+    property <color> muted-col: is-dark ? #A5CDAF : #6C8571;
+    property <color> card-col: is-dark ? #385E40 : #F3F7F4;
+
+    public function submit() {
+        if (root.new-task-name != "") {
+            root.task-added(root.new-task-name);
+            root.new-task-name = "";
+        }
+    }
+
+    VerticalLayout {
+        padding-left: 20px;
+        padding-right: 20px;
+        padding-top: 16px;
+        padding-bottom: 16px;
+        spacing: 12px;
+        alignment: start;
+
+        // header
+        HorizontalLayout {
+            height: 36px;
+            alignment: space-between;
+
+            Rectangle {
+                width: 32px;
+                height: 32px;
+                border-radius: 16px;
+                background: back-touch.has-hover ? (root.is-dark ? #41684B : #EDF2EE) : #00000000;
+
+                BackArrowIcon {
+                    stroke-color: root.text-col;
+                }
+
+                back-touch := TouchArea {
+                    width: 100%;
+                    height: 100%;
+                    mouse-cursor: pointer;
+                    clicked => { root.back-clicked(); }
+                }
+            }
+
+            VerticalLayout {
+                alignment: center;
+                Text {
+                    text: "Tasks";
+                    color: root.text-col;
+                    font-size: 16px;
+                    font-weight: 700;
+                    letter-spacing: 0.5px;
+                }
+            }
+
+            Rectangle { width: 32px; }
+        }
+
+        // hint
+        Text {
+            text: "Select a task to focus on during your Pomodoro sessions.";
+            color: root.muted-col;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        // add task
+        Rectangle {
+            height: 42px;
+            border-radius: 12px;
+            background: root.card-col;
+            border-width: 1px;
+            border-color: root.is-dark ? #4A7654 : #E2EBE3;
+
+            HorizontalLayout {
+                padding-left: 14px;
+                padding-right: 6px;
+                spacing: 8px;
+
+                // input
+                Rectangle {
+                    horizontal-stretch: 1;
+
+                    if input.text == "" : Text {
+                        text: "Add new task...";
+                        color: root.muted-col;
+                        font-size: 12px;
+                        font-weight: 500;
+                        vertical-alignment: center;
+                        x: 0px;
+                    }
+
+                    input := TextInput {
+                        width: 100%;
+                        height: 100%;
+                        text <=> root.new-task-name;
+                        color: root.text-col;
+                        font-size: 12px;
+                        font-weight: 600;
+                        vertical-alignment: center;
+                        single-line: true;
+                        accepted => { root.submit(); }
+                    }
+                }
+
+                // add
+                VerticalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: 56px;
+                        height: 30px;
+                        border-radius: 10px;
+                        background: add-touch.pressed 
+                            ? (root.is-dark ? #D2DDD4 : #284730) 
+                            : (add-touch.has-hover 
+                                ? (root.is-dark ? #E8EFEA : #2F5337) 
+                                : (root.is-dark ? #FFFFFF : Theme.work-primary));
+
+                        animate background { duration: 120ms; }
+
+                        Text {
+                            text: "Add";
+                            color: root.is-dark ? Theme.work-primary : #FFFFFF;
+                            font-size: 12px;
+                            font-weight: 700;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+
+                        add-touch := TouchArea {
+                            width: 100%;
+                            height: 100%;
+                            mouse-cursor: pointer;
+                            clicked => { root.submit(); }
+                        }
+                    }
+                }
+            }
+        }
+
+        // error
+        if root.error-text != "" : Text {
+            text: root.error-text;
+            color: root.is-dark ? #FFB4B4 : #B83232;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        // list
+        VerticalLayout {
+            spacing: 6px;
+            for task in root.tasks : TaskRow {
+                name: task.name;
+                active: task.name == root.active-task;
+                deletable: task.deletable;
+                dark: root.is-dark;
+                selected => { root.task-selected(task.name); }
+                deleted => { root.task-deleted(task.name); }
+            }
+        }
+
+        // footer
+        Text {
+            text: "Up to \{root.task-limit} tasks · General is default";
+            color: root.muted-col;
+            font-size: 10px;
+        }
+    }
+}

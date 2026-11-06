@@ -1,0 +1,450 @@
+import { Theme } from "theme.slint";
+import { BackArrowIcon } from "icons.slint";
+
+export component SettingStepper {
+    in property <string> label;
+    in property <string> unit: "min";
+    in-out property <int> value: 25;
+    in property <int> min-value: 1;
+    in property <int> max-value: 120;
+    in property <int> step: 1;
+    in property <bool> is-dark: false;
+
+    callback changed(int);
+
+    height: 46px;
+
+    property <bool> can-decrease: root.value > root.min-value;
+    property <bool> can-increase: root.value < root.max-value;
+
+    property <color> card-bg: is-dark ? #385E40 : #F3F7F4;
+    property <color> label-color: is-dark ? #FFFFFF : #223827;
+    property <color> btn-bg: is-dark ? #4A7654 : #FFFFFF;
+    property <color> btn-hover-bg: is-dark ? #5B8A66 : #E5ECE7;
+    property <color> btn-pressed-bg: is-dark ? #34593C : #DCE4DE;
+    property <color> btn-text: is-dark ? #FFFFFF : #3E6947;
+    property <color> btn-disabled-bg: is-dark ? #284730 : #E5EDE7;
+    property <color> btn-disabled-text: is-dark ? #5C7C63 : #A0B3A4;
+    property <color> val-bg: is-dark ? #284730 : #FFFFFF;
+    property <color> val-text: is-dark ? #FFFFFF : #223827;
+    property <color> unit-text: is-dark ? #A3C9AC : #7B9480;
+
+    function decrement() {
+        if (!root.can-decrease) { return; }
+        if (root.value - root.step < root.min-value) {
+            root.value = root.min-value;
+        } else {
+            root.value -= root.step;
+        }
+        root.changed(root.value);
+    }
+
+    function increment() {
+        if (!root.can-increase) { return; }
+        if (root.value < root.step) {
+            root.value = Math.min(root.max-value, root.step);
+        } else {
+            root.value = Math.min(root.max-value, root.value + root.step);
+        }
+        root.changed(root.value);
+    }
+
+    Rectangle {
+        background: root.card-bg;
+        border-radius: 12px;
+
+        HorizontalLayout {
+            padding-left: 18px;
+            padding-right: 14px;
+            spacing: 16px;
+
+            // label
+            VerticalLayout {
+                alignment: center;
+                horizontal-stretch: 1;
+
+                Text {
+                    text: root.label;
+                    color: root.label-color;
+                    font-size: 13px;
+                    font-weight: 600;
+                    overflow: elide;
+                    vertical-alignment: center;
+                    horizontal-alignment: left;
+                }
+            }
+
+            // stepper
+            HorizontalLayout {
+                spacing: 6px;
+                alignment: end;
+                horizontal-stretch: 0;
+
+                // minus
+                Rectangle {
+                    width: 28px;
+                    height: 28px;
+                    y: (parent.height - self.height) / 2;
+                    border-radius: 14px;
+                    opacity: root.can-decrease ? 1.0 : 0.28;
+                    background: !root.can-decrease 
+                        ? root.btn-disabled-bg 
+                        : (minus-touch.pressed ? root.btn-pressed-bg : (minus-touch.has-hover ? root.btn-hover-bg : root.btn-bg));
+
+                    animate opacity { duration: 120ms; }
+
+                    Text {
+                        text: "−";
+                        color: root.can-decrease ? root.btn-text : root.btn-disabled-text;
+                        font-size: 16px;
+                        font-weight: 700;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    minus-touch := TouchArea {
+                        mouse-cursor: root.can-decrease ? pointer : default;
+                        clicked => {
+                            if (root.can-decrease) {
+                                root.decrement();
+                            }
+                        }
+                    }
+                }
+
+                // value
+                Rectangle {
+                    width: 50px;
+                    height: 28px;
+                    y: (parent.height - self.height) / 2;
+                    border-radius: 8px;
+                    background: root.val-bg;
+
+                    HorizontalLayout {
+                        alignment: center;
+                        spacing: 2px;
+                        Text {
+                            text: "\{root.value}";
+                            color: root.val-text;
+                            font-size: 13px;
+                            font-weight: 700;
+                            vertical-alignment: center;
+                        }
+                        Text {
+                            text: root.unit;
+                            color: root.unit-text;
+                            font-size: 11px;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+
+                // plus
+                Rectangle {
+                    width: 28px;
+                    height: 28px;
+                    y: (parent.height - self.height) / 2;
+                    border-radius: 14px;
+                    opacity: root.can-increase ? 1.0 : 0.28;
+                    background: !root.can-increase 
+                        ? root.btn-disabled-bg 
+                        : (plus-touch.pressed ? root.btn-pressed-bg : (plus-touch.has-hover ? root.btn-hover-bg : root.btn-bg));
+
+                    animate opacity { duration: 120ms; }
+
+                    Text {
+                        text: "+";
+                        color: root.can-increase ? root.btn-text : root.btn-disabled-text;
+                        font-size: 15px;
+                        font-weight: 700;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+
+                    plus-touch := TouchArea {
+                        mouse-cursor: root.can-increase ? pointer : default;
+                        clicked => {
+                            if (root.can-increase) {
+                                root.increment();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+export component SettingToggle {
+    in property <string> label;
+    in-out property <bool> checked: true;
+    in property <bool> is-dark: false;
+
+    callback toggled(bool);
+
+    height: 50px;
+
+    property <color> card-bg: is-dark ? #385E40 : #F3F7F4;
+    property <color> label-color: is-dark ? #FFFFFF : #223827;
+    property <color> track-active: is-dark ? #5FA26E : #3E6947;
+    property <color> track-inactive: is-dark ? #284730 : #D4DCD5;
+    property <color> knob-active: #FFFFFF;
+    property <color> knob-inactive: is-dark ? #7A9E82 : #FFFFFF;
+
+    Rectangle {
+        background: root.card-bg;
+        border-radius: 12px;
+
+        HorizontalLayout {
+            padding-left: 18px;
+            padding-right: 14px;
+            alignment: space-between;
+
+            VerticalLayout {
+                alignment: center;
+                Text {
+                    text: root.label;
+                    color: root.label-color;
+                    font-size: 13px;
+                    font-weight: 600;
+                }
+            }
+
+            VerticalLayout {
+                alignment: center;
+                Rectangle {
+                    width: 42px;
+                    height: 24px;
+                    border-radius: 12px;
+                    background: root.checked ? root.track-active : root.track-inactive;
+
+                    animate background { duration: 150ms; }
+
+                    Rectangle {
+                        x: root.checked ? 20px : 2px;
+                        y: 2px;
+                        width: 20px;
+                        height: 20px;
+                        border-radius: 10px;
+                        background: root.checked ? root.knob-active : root.knob-inactive;
+
+                        animate x { duration: 150ms; easing: ease-out; }
+                    }
+
+                    TouchArea {
+                        mouse-cursor: pointer;
+                        clicked => {
+                            root.checked = !root.checked;
+                            root.toggled(root.checked);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+export component SettingsView {
+    in-out property <int> focus-duration: 25;
+    in-out property <int> short-break-duration: 5;
+    in-out property <int> long-break-duration: 15;
+    in-out property <int> long-break-interval: 4;
+    in-out property <bool> sound-enabled: true;
+    in-out property <int> sound-volume: 100;
+    in-out property <bool> auto-start-breaks: false;
+    in-out property <bool> auto-start-focus: false;
+
+    in property <bool> is-dark: false;
+
+    callback back-clicked();
+    callback reset-defaults();
+    callback open-data();
+
+    property <color> bg: is-dark ? Theme.rest-bg : Theme.work-bg;
+    property <color> text-col: is-dark ? #FFFFFF : Theme.work-text;
+    property <color> card-col: is-dark ? #385E40 : #F3F7F4;
+    property <color> primary-col: is-dark ? #FFFFFF : Theme.work-primary;
+
+    VerticalLayout {
+        padding-left: 20px;
+        padding-right: 20px;
+        padding-top: 16px;
+        padding-bottom: 16px;
+        spacing: 10px;
+        alignment: stretch;
+
+        // header
+        HorizontalLayout {
+            height: 36px;
+            alignment: space-between;
+
+            Rectangle {
+                width: 32px;
+                height: 32px;
+                border-radius: 16px;
+                background: back-touch.has-hover ? (root.is-dark ? #41684B : #EDF2EE) : #00000000;
+
+                BackArrowIcon {
+                    stroke-color: root.text-col;
+                }
+
+                back-touch := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.back-clicked(); }
+                }
+            }
+
+            VerticalLayout {
+                alignment: center;
+                Text {
+                    text: "Configuration";
+                    color: root.text-col;
+                    font-size: 15px;
+                    font-weight: 700;
+                    letter-spacing: 0.5px;
+                }
+            }
+
+            Rectangle { width: 32px; }
+        }
+
+        // steppers
+        SettingStepper {
+            label: "Study Duration";
+            unit: "m";
+            value <=> root.focus-duration;
+            min-value: 1;
+            max-value: 120;
+            step: 5;
+            is-dark: root.is-dark;
+        }
+
+        SettingStepper {
+            label: "Rest Duration";
+            unit: "m";
+            value <=> root.short-break-duration;
+            min-value: 1;
+            max-value: 30;
+            step: 1;
+            is-dark: root.is-dark;
+        }
+
+        SettingStepper {
+            label: "Deep Rest Duration";
+            unit: "m";
+            value <=> root.long-break-duration;
+            min-value: 1;
+            max-value: 60;
+            step: 5;
+            is-dark: root.is-dark;
+        }
+
+        SettingStepper {
+            label: "Cycle Interval";
+            unit: root.long-break-interval == 1 ? "set" : "sets";
+            value <=> root.long-break-interval;
+            min-value: 1;
+            max-value: 8;
+            step: 1;
+            is-dark: root.is-dark;
+        }
+
+        // toggles
+        SettingToggle {
+            label: "Sound Notification";
+            checked <=> root.sound-enabled;
+            is-dark: root.is-dark;
+        }
+
+        SettingStepper {
+            label: "Alarm Volume";
+            unit: "%";
+            value <=> root.sound-volume;
+            min-value: 0;
+            max-value: 100;
+            step: 10;
+            is-dark: root.is-dark;
+        }
+
+        SettingToggle {
+            label: "Auto-Start Rest";
+            checked <=> root.auto-start-breaks;
+            is-dark: root.is-dark;
+        }
+
+        SettingToggle {
+            label: "Auto-Start Study";
+            checked <=> root.auto-start-focus;
+            is-dark: root.is-dark;
+        }
+
+        // actions
+        HorizontalLayout {
+            padding-top: 6px;
+            alignment: space-between;
+
+            Rectangle {
+                height: 38px;
+                width: 120px;
+                border-radius: 19px;
+                background: r-touch.has-hover ? (root.is-dark ? #3F6749 : #E5ECE7) : root.card-col;
+
+                Text {
+                    text: "Reset Defaults";
+                    color: root.is-dark ? #A5CDAF : #6C8571;
+                    font-size: 11px;
+                    font-weight: 600;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                r-touch := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.reset-defaults(); }
+                }
+            }
+
+            Rectangle {
+                height: 38px;
+                width: 70px;
+                border-radius: 19px;
+                background: d-touch.has-hover ? (root.is-dark ? #3F6749 : #E5ECE7) : root.card-col;
+
+                Text {
+                    text: "Data";
+                    color: root.is-dark ? #A5CDAF : #6C8571;
+                    font-size: 11px;
+                    font-weight: 600;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                d-touch := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.open-data(); }
+                }
+            }
+
+            Rectangle {
+                height: 38px;
+                width: 90px;
+                border-radius: 19px;
+                background: s-touch.has-hover ? (root.is-dark ? #E8EFEA : #2F5337) : root.primary-col;
+
+                Text {
+                    text: "Done";
+                    color: root.is-dark ? Theme.work-primary : #FFFFFF;
+                    font-size: 12px;
+                    font-weight: 700;
+                    horizontal-alignment: center;
+                    vertical-alignment: center;
+                }
+
+                s-touch := TouchArea {
+                    mouse-cursor: pointer;
+                    clicked => { root.back-clicked(); }
+                }
+            }
+        }
+    }
+}
