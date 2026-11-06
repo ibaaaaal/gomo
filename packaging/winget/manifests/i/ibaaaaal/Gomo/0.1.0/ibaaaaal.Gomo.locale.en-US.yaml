@@ -1,0 +1,23 @@
+PackageIdentifier: ibaaaaal.Gomo
+PackageVersion: 0.1.0
+PackageLocale: en-US
+Publisher: ibaaaaal
+PublisherUrl: https://github.com/ibaaaaal
+PublisherSupportUrl: https://github.com/ibaaaaal/gomo/issues
+Author: ibaaaaal
+PackageName: Gomo
+PackageUrl: https://github.com/ibaaaaal/gomo
+License: MIT
+LicenseUrl: https://github.com/ibaaaaal/gomo/blob/main/LICENSE
+Copyright: Copyright (c) 2026 ibaaaaal
+ShortDescription: A lightweight Windows study timer.
+Description: Gomo is a lightweight Windows study timer built with Rust and Slint. It supports Study, Rest, and Deep Rest modes, custom tasks, focus goals, statistics, local backup and restore, and a native system tray.
+Moniker: gomo
+Tags:
+  - pomodoro
+  - study
+  - timer
+  - productivity
+ReleaseNotesUrl: https://github.com/ibaaaaal/gomo/releases/tag/v0.1.0
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0
